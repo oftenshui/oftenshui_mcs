@@ -1,6 +1,6 @@
-name: astrbot_plugin_essential
-desc: 支持多个娱乐功能！！随机动漫图片、以图搜番（适配手机QQ和微信）、MC服务器、一言、今天吃什么、群早晚安记录、EPIC喜加一。帮助：https://github.com/Soulter/astrbot_plugin_essential
+name: astrbot_mcs
+desc: 支持多个娱乐功能！！随机动漫图片、以图搜番（适配手机QQ和微信）、MC服务器、一言、今天吃什么、群早晚安记录、EPIC喜加一。
 help:
-version: v1.0.9
-author: Soulter,FateTrial
-repo: https://github.com/Soulter/astrbot_plugin_essential
+version: v1.1.0
+author: Soulter,FateTrial,oftenshui
+repo: https://github.com/oftenshui/astrbot_mcs
