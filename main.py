@@ -215,101 +215,93 @@ class Main(Star):
             del self.search_anmime_demand_users[sender]
             yield message.plain_result("🧐你没有发送图片，搜番请求已取消了喵")
 
-    @filter.command("mcs")
-    async def mcs(self, message: AstrMessageEvent):
-        """查mc服务器"""
-        message_str = message.message_str
-        if message_str == "mcs":
-            return CommandResult().error("查 Minecraft 服务器。格式: /mcs [服务器地址]")
-        ip = message_str.replace("mcs", "").strip()
-        url = f"https://api.mcsrvstat.us/2/{ip}"
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                if resp.status != 200:
-                    return CommandResult().error("请求失败")
-                data = await resp.json()
-                logger.info(f"获取到 {ip} 的服务器信息。")
+@filter.command("mcs")
+async def mcs(self, message: AstrMessageEvent):
+    """查mc服务器"""
+    message_str = message.message_str
+    if message_str == "mcs":
+        return CommandResult().error("查 Minecraft 服务器。格式: /mcs [服务器地址]")
 
-        # result = await context.image_renderer.render_custom_template(self.mc_html_tmpl, data, return_url=True)
-        motd = "查询失败"
-        if (
-            "motd" in data
-            and isinstance(data["motd"], dict)
-            and isinstance(data["motd"].get("clean"), list)
-        ):
-            motd_lines = [
-                i.strip()
-                for i in data["motd"]["clean"]
-                if isinstance(i, str) and i.strip()
-            ]
-            motd = "\n".join(motd_lines) if motd_lines else "查询失败"
+    ip = message_str.replace("mcs", "").strip()
+    url = f"https://sr-api.sfirew.com/server/{ip}"
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                return CommandResult().error("请求失败")
+            data = await resp.json()
+            logger.info(f"获取到 {ip} 的服务器信息。")
 
-        players = "查询失败"
-        version = "查询失败"
-        if "error" in data:
-            return CommandResult().error(f"查询失败: {data['error']}")
+    # 处理 MOTD
+    motd = data.get("motd", {}).get("cleaned", "查询失败")
 
-        name_list = []
+    # 处理玩家信息
+    players = "查询失败"
+    online_players = []
+    
+    if "players" in data:
+        players = f"{data['players']['online']}/{data['players']['max']}"
+        online_players = [p["name"] for p in data["players"].get("sample", [])]
 
-        if "players" in data:
-            players = f"{data['players']['online']}/{data['players']['max']}"
+    # 兼容 info.raw 里的玩家信息
+    if not online_players and "info" in data:
+        online_players = [p["name"] for p in data["info"].get("raw", [])]
 
-            if "list" in data["players"]:
-                name_list = data["players"]["list"]
+    # 处理版本信息
+    version = data.get("version", {}).get("raw", "查询失败")
 
-        if "version" in data:
-            version = str(data["version"])
+    # 服务器状态
+    status = "🟢" if data.get("online", False) else "🔴"
 
-        status = "🟢" if data["online"] else "🔴"
+    # 处理 Ping 延迟
+    ping = data.get("ping", "未知")
 
-        name_list_str = ""
-        if name_list:
-            name_list_str = "\n".join(name_list)
-        if not name_list_str:
-            name_list_str = "无玩家在线"
+    # 生成在线玩家列表
+    name_list_str = "\n".join(online_players) if online_players else "无玩家在线"
 
-        result_text = (
-            "【查询结果】\n"
-            f"状态: {status}\n"
-            f"服务器IP: {ip}\n"
-            f"版本: {version}\n"
-            f"MOTD: {motd}"
-            f"玩家人数: {players}\n"
-            f"在线玩家: \n{name_list_str}"
-        )
+    # 构造返回文本
+    result_text = (
+        "【查询结果】\n"
+        f"状态: {status}\n"
+        f"服务器IP: {ip}\n"
+        f"版本: {version}\n"
+        f"延迟: {ping}ms\n"
+        f"MOTD: {motd}\n"
+        f"玩家人数: {players}\n"
+        f"在线玩家: \n{name_list_str}"
+    )
 
-        return CommandResult().message(result_text).use_t2i(False)
+    return CommandResult().message(result_text).use_t2i(False)
 
-    @filter.command("一言")
-    async def hitokoto(self, message: AstrMessageEvent):
-        """来一条一言"""
-        url = "https://v1.hitokoto.cn"
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                if resp.status != 200:
-                    return CommandResult().error("请求失败")
-                data = await resp.json()
-        return CommandResult().message(data["hitokoto"] + " —— " + data["from"])
+# 确保这里有空行
 
-    async def save_what_eat_data(self):
-        path = os.path.abspath(os.path.dirname(__file__))
-        with open(path + "/resources/food.json", "w", encoding="utf-8") as f:
-            f.write(
-                json.dumps(
-                    {"data": self.what_to_eat_data}, ensure_ascii=False, indent=2
-                )
-            )
+@filter.command("一言")
+async def hitokoto(self, message: AstrMessageEvent):
+    """来一条一言"""
+    url = "https://v1.hitokoto.cn"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                return CommandResult().error("请求失败")
+            data = await resp.json()
+    return CommandResult().message(data["hitokoto"] + " —— " + data["from"])
 
-    @filter.command("今天吃什么")
-    async def what_to_eat(self, message: AstrMessageEvent):
-        """今天吃什么"""
-        if "添加" in message.message_str:
-            l = message.message_str.split(" ")
-            # 今天吃什么 添加 xxx xxx xxx
-            if len(l) < 3:
-                return CommandResult().error(
-                    "格式：今天吃什么 添加 [食物1] [食物2] ..."
-                )
+async def save_what_eat_data(self):
+    path = os.path.abspath(os.path.dirname(__file__))
+    food_json_path = os.path.join(path, "resources", "food.json")
+    with open(food_json_path, "w", encoding="utf-8") as f:
+        json.dump({"data": self.what_to_eat_data}, f, ensure_ascii=False, indent=2)
+
+@filter.command("今天吃什么")
+async def what_to_eat(self, message: AstrMessageEvent):
+    """今天吃什么"""
+    if not hasattr(self, "what_to_eat_data"):
+        self.what_to_eat_data = []
+
+    if "添加" in message.message_str:
+        l = message.message_str.split(" ")
+        if len(l) < 3:
+            return CommandResult().error("格式：今天吃什么 添加 [食物1] [食物2]")
             self.what_to_eat_data += l[2:]  # 添加食物
             await self.save_what_eat_data()
             return CommandResult().message("添加成功")
