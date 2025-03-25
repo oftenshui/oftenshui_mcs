@@ -292,38 +292,43 @@ async def save_what_eat_data(self):
     with open(food_json_path, "w", encoding="utf-8") as f:
         json.dump({"data": self.what_to_eat_data}, f, ensure_ascii=False, indent=2)
 
-@filter.command("今天吃什么")
-async def what_to_eat(self, message: AstrMessageEvent):
-    """今天吃什么"""
-    if not hasattr(self, "what_to_eat_data"):
-        self.what_to_eat_data = []
+class BotCommands:
+    def __init__(self):
+        self.what_to_eat_data: List[str] = []
+        self.good_morning_data = {}
+        self.PLUGIN_NAME = "bot_plugin"
 
-    if "添加" in message.message_str:
-        l = message.message_str.split(" ")
-        if len(l) < 3:
-            return CommandResult().error("格式：今天吃什么 添加 [食物1] [食物2]")
-            self.what_to_eat_data += l[2:]  # 添加食物
+    async def save_what_eat_data(self):
+        """保存食物列表"""
+        with open("data/what_to_eat.json", "w", encoding="utf-8") as f:
+            json.dump(self.what_to_eat_data, f, ensure_ascii=False, indent=2)
+
+    @filter.command("今天吃什么")
+    async def what_to_eat(self, message: AstrMessageEvent):
+        """今天吃什么"""
+        cmd, *items = message.message_str.split(" ")
+
+        if cmd == "添加":
+            if not items:
+                return CommandResult().error("格式：今天吃什么 添加 [食物1] [食物2] ...")
+            self.what_to_eat_data.extend(items)
             await self.save_what_eat_data()
             return CommandResult().message("添加成功")
-        elif "删除" in message.message_str:
-            l = message.message_str.split(" ")
-            # 今天吃什么 删除 xxx xxx xxx
-            if len(l) < 3:
-                return CommandResult().error(
-                    "格式：今天吃什么 删除 [食物1] [食物2] ..."
-                )
-            for i in l[2:]:
-                if i in self.what_to_eat_data:
-                    self.what_to_eat_data.remove(i)
+
+        if cmd == "删除":
+            if not items:
+                return CommandResult().error("格式：今天吃什么 删除 [食物1] [食物2] ...")
+            self.what_to_eat_data = [item for item in self.what_to_eat_data if item not in items]
             await self.save_what_eat_data()
             return CommandResult().message("删除成功")
 
-        ret = f"今天吃 {random.choice(self.what_to_eat_data)}！"
-        return CommandResult().message(ret)
+        if self.what_to_eat_data:
+            return CommandResult().message(f"今天吃 {random.choice(self.what_to_eat_data)}！")
+        return CommandResult().message("食物列表为空，请先添加食物")
 
     @filter.command("喜加一")
     async def epic_free_game(self, message: AstrMessageEvent):
-        """EPIC 喜加一"""
+        """获取EPIC商店的免费游戏"""
         url = "https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions"
 
         async with aiohttp.ClientSession() as session:
@@ -335,148 +340,63 @@ async def what_to_eat(self, message: AstrMessageEvent):
         games = []
         upcoming = []
 
-        for game in data["data"]["Catalog"]["searchStore"]["elements"]:
+        for game in data.get("data", {}).get("Catalog", {}).get("searchStore", {}).get("elements", []):
             title = game.get("title", "未知")
-            try:
-                if not game.get("promotions"):
-                    continue
-                original_price = game["price"]["totalPrice"]["fmtPrice"][
-                    "originalPrice"
-                ]
-                discount_price = game["price"]["totalPrice"]["fmtPrice"][
-                    "discountPrice"
-                ]
-                promotions = game["promotions"]["promotionalOffers"]
-                upcoming_promotions = game["promotions"]["upcomingPromotionalOffers"]
+            price_info = game.get("price", {}).get("totalPrice", {}).get("fmtPrice", {})
+            original_price, discount_price = price_info.get("originalPrice", "未知"), price_info.get("discountPrice", "未知")
 
-                if promotions:
-                    promotion = promotions[0]["promotionalOffers"][0]
-                else:
-                    promotion = upcoming_promotions[0]["promotionalOffers"][0]
-                start = promotion["startDate"]
-                end = promotion["endDate"]
-                # 2024-09-19T15:00:00.000Z
-                start_utc8 = datetime.datetime.strptime(
-                    start, "%Y-%m-%dT%H:%M:%S.%fZ"
-                ) + datetime.timedelta(hours=8)
-                start_human = start_utc8.strftime("%Y-%m-%d %H:%M")
-                end_utc8 = datetime.datetime.strptime(
-                    end, "%Y-%m-%dT%H:%M:%S.%fZ"
-                ) + datetime.timedelta(hours=8)
-                end_human = end_utc8.strftime("%Y-%m-%d %H:%M")
-                discount = float(promotion["discountSetting"]["discountPercentage"])
-                if discount != 0:
-                    # 过滤掉不是免费的游戏
-                    continue
+            promotions = game.get("promotions", {})
+            active_promotions = promotions.get("promotionalOffers", [])
+            upcoming_promotions = promotions.get("upcomingPromotionalOffers", [])
 
-                if promotions:
-                    games.append(
-                        f"【{title}】\n原价: {original_price} | 现价: {discount_price}\n活动时间: {start_human} - {end_human}"
-                    )
-                else:
-                    upcoming.append(
-                        f"【{title}】\n原价: {original_price} | 现价: {discount_price}\n活动时间: {start_human} - {end_human}"
-                    )
+            if active_promotions:
+                promotion = active_promotions[0]["promotionalOffers"][0]
+            elif upcoming_promotions:
+                promotion = upcoming_promotions[0]["promotionalOffers"][0]
+            else:
+                continue
 
-            except BaseException as e:
-                raise e
-                games.append(f"处理 {title} 时出现错误")
+            discount = float(promotion["discountSetting"]["discountPercentage"])
+            if discount != 0:
+                continue
 
-        if len(games) == 0:
-            return CommandResult().message("暂无免费游戏")
-        return (
-            CommandResult()
-            .message(
-                "【EPIC 喜加一】\n"
-                + "\n\n".join(games)
-                + "\n\n"
-                + "【即将免费】\n"
-                + "\n\n".join(upcoming)
-            )
-            .use_t2i(False)
-        )
+            start = datetime.datetime.strptime(promotion["startDate"], "%Y-%m-%dT%H:%M:%S.%fZ") + datetime.timedelta(hours=8)
+            end = datetime.datetime.strptime(promotion["endDate"], "%Y-%m-%dT%H:%M:%S.%fZ") + datetime.timedelta(hours=8)
+
+            game_info = f"【{title}】\n原价: {original_price} | 现价: {discount_price}\n活动时间: {start.strftime('%Y-%m-%d %H:%M')} - {end.strftime('%Y-%m-%d %H:%M')}"
+            (games if active_promotions else upcoming).append(game_info)
+
+        result = "【EPIC 喜加一】\n" + "\n\n".join(games) + "\n\n【即将免费】\n" + "\n\n".join(upcoming)
+        return CommandResult().message(result if games else "暂无免费游戏").use_t2i(False)
 
     @filter.regex(r"^(早安|晚安)")
     async def good_morning(self, message: AstrMessageEvent):
-        """和Bot说早晚安，记录睡眠时间，培养良好作息"""
-        # CREDIT: 灵感部分借鉴自：https://github.com/MinatoAquaCrews/nonebot_plugin_morning
-        umo_id = message.unified_msg_origin
-        user_id = message.message_obj.sender.user_id
-        user_name = message.message_obj.sender.nickname
-        curr_utc8 = datetime.datetime.utcnow() + datetime.timedelta(hours=8)
-        curr_human = curr_utc8.strftime("%Y-%m-%d %H:%M:%S")
-
+        """记录早晚安时间"""
+        umo_id, user = message.unified_msg_origin, message.message_obj.sender
+        user_id, user_name = user.user_id, user.nickname
+        curr_time = datetime.datetime.utcnow() + datetime.timedelta(hours=8)
+        curr_time_str = curr_time.strftime("%Y-%m-%d %H:%M:%S")
         is_night = "晚安" in message.message_str
 
-        if umo_id in self.good_morning_data:
-            umo = self.good_morning_data[umo_id]
-        else:
-            umo = {}
-        if user_id in umo:
-            user = umo[user_id]
-        else:
-            user = {
-                "daily": {
-                    "morning_time": "",
-                    "night_time": "",
-                }
-            }
-
+        user_data = self.good_morning_data.setdefault(umo_id, {}).setdefault(user_id, {"daily": {"morning_time": "", "night_time": ""}})
         if is_night:
-            user["daily"]["night_time"] = curr_human
-            user["daily"]["morning_time"] = ""  # 晚安后清空早安时间
+            user_data["daily"]["night_time"] = curr_time_str
+            user_data["daily"]["morning_time"] = ""
         else:
-            user["daily"]["morning_time"] = curr_human
+            user_data["daily"]["morning_time"] = curr_time_str
 
-        umo[user_id] = user
-        self.good_morning_data[umo_id] = umo
+        # 统计今天睡觉的人数
+        curr_day_sleeping = sum(
+            1 for v in self.good_morning_data[umo_id].values()
+            if v["daily"]["night_time"] and not v["daily"]["morning_time"] and
+            datetime.datetime.strptime(v["daily"]["night_time"], "%Y-%m-%d %H:%M:%S").day == curr_time.day
+        )
 
-        with open(f"data/{self.PLUGIN_NAME}_data.json", "w", encoding="utf-8") as f:
-            f.write(json.dumps(self.good_morning_data, ensure_ascii=False, indent=2))
+        # 计算睡眠时间
+        if not is_night and user_data["daily"]["night_time"]:
+            night_time = datetime.datetime.strptime(user_data["daily"]["night_time"], "%Y-%m-%d %H:%M:%S")
+            sleep_duration = (curr_time - night_time).total_seconds()
+            sleep_duration_human = f"{int(sleep_duration / 3600)}小时{int((sleep_duration % 3600) / 60)}分"
+            return CommandResult().message(f"早安喵，{user_name}！\n现在是 {curr_time_str}，昨晚你睡了 {sleep_duration_human}。").use_t2i(False)
 
-        # 根据 day 判断今天是本群第几个睡觉的
-        # TODO: 此处可以缓存
-        curr_day: int = curr_utc8.day
-        curr_day_sleeping = 0
-        for v in umo.values():
-            if v["daily"]["night_time"] and not v["daily"]["morning_time"]:
-                # he/she is sleeping
-                user_day = datetime.datetime.strptime(
-                    v["daily"]["night_time"], "%Y-%m-%d %H:%M:%S"
-                ).day
-                if user_day == curr_day:
-                    # 今天睡觉的人数
-                    curr_day_sleeping += 1
-
-        if not is_night:
-            # 计算睡眠时间: xx小时xx分
-            # 此处可以联动 TODO
-            sleep_duration_human = ""
-            if user["daily"]["night_time"]:
-                night_time = datetime.datetime.strptime(
-                    user["daily"]["night_time"], "%Y-%m-%d %H:%M:%S"
-                )
-                morning_time = datetime.datetime.strptime(
-                    user["daily"]["morning_time"], "%Y-%m-%d %H:%M:%S"
-                )
-                sleep_duration = (morning_time - night_time).total_seconds()
-                hrs = int(sleep_duration / 3600)
-                mins = int((sleep_duration % 3600) / 60)
-                sleep_duration_human = f"{hrs}小时{mins}分"
-
-            return (
-                CommandResult()
-                .message(
-                    f"早安喵，{user_name}！\n现在是 {curr_human}，昨晚你睡了 {sleep_duration_human}。"
-                )
-                .use_t2i(False)
-            )
-        else:
-            # 此处可以联动 TODO
-            return (
-                CommandResult()
-                .message(
-                    f"晚安喵，{user_name}！\n现在是 {curr_human}，你是本群今天第 {curr_day_sleeping} 个睡觉的。"
-                )
-                .use_t2i(False)
-            )
+        return CommandResult().message(f"晚安喵，{user_name}！\n现在是 {curr_time_str}，你是本群今天第 {curr_day_sleeping} 个睡觉的。").use_t2i(False)
