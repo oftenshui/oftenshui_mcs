@@ -292,6 +292,37 @@ async def save_what_eat_data(self):
     with open(food_json_path, "w", encoding="utf-8") as f:
         json.dump({"data": self.what_to_eat_data}, f, ensure_ascii=False, indent=2)
 
+
+path = os.path.dirname(os.path.abspath(__file__))  # 获取当前脚本目录
+food_json_path = os.path.join(path, "resources", "ys.json")  # 构造 JSON 文件路径
+
+@filter.command("原神")
+async def genshin_quote(self, message: AstrMessageEvent):
+    """来一句原神语录"""
+    
+    # 尝试读取本地 JSON 文件
+    try:
+        with open(food_json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        
+        if not isinstance(data, dict) or "data" not in data or not isinstance(data["data"], list):
+            return CommandResult().error("本地数据为空或格式错误")
+        
+        quote = random.choice(data["data"])  # 从 "data" 数组中随机选择一句
+        
+        return CommandResult().message(quote)
+    
+    except Exception as e:
+        return CommandResult().error(f"读取本地数据失败: {str(e)}")
+
+
+async def save_what_eat_data(self):
+    path = os.path.abspath(os.path.dirname(__file__))
+    food_json_path = os.path.join(path, "resources", "food.json")
+    with open(food_json_path, "w", encoding="utf-8") as f:
+        json.dump({"data": self.what_to_eat_data}, f, ensure_ascii=False, indent=2)
+
+
 class BotCommands:
     def __init__(self):
         self.what_to_eat_data: List[str] = []
