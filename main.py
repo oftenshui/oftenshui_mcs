@@ -215,8 +215,8 @@ class Main(Star):
             del self.search_anmime_demand_users[sender]
             yield message.plain_result("🧐你没有发送图片，搜番请求已取消了喵")
 
-@filter.command("mcs")
-async def mcs(self, message: AstrMessageEvent):
+    @filter.command("mcs")
+    async def mcs(self, message: AstrMessageEvent):
     """查mc服务器"""
     message_str = message.message_str
     if message_str == "mcs":
@@ -271,9 +271,9 @@ async def mcs(self, message: AstrMessageEvent):
         f"在线玩家: \n{name_list_str}"
     )
 
-    return CommandResult().message(result_text).use_t2i(False)
 
-    
+        return CommandResult().message(result_text).use_t2i(False)
+
     @filter.command("一言")
     async def hitokoto(self, message: AstrMessageEvent):
         """来一条一言"""
