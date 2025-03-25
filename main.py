@@ -328,7 +328,7 @@ class BotCommands:
 
     @filter.command("喜加一")
     async def epic_free_game(self, message: AstrMessageEvent):
-        """获取EPIC商店的免费游戏"""
+        """EPIC 喜加一"""
         url = "https://store-site-backend-static-ipv4.ak.epicgames.com/freeGamesPromotions"
 
         async with aiohttp.ClientSession() as session:
@@ -340,34 +340,67 @@ class BotCommands:
         games = []
         upcoming = []
 
-        for game in data.get("data", {}).get("Catalog", {}).get("searchStore", {}).get("elements", []):
+        for game in data["data"]["Catalog"]["searchStore"]["elements"]:
             title = game.get("title", "未知")
-            price_info = game.get("price", {}).get("totalPrice", {}).get("fmtPrice", {})
-            original_price, discount_price = price_info.get("originalPrice", "未知"), price_info.get("discountPrice", "未知")
+            try:
+                if not game.get("promotions"):
+                    continue
+                original_price = game["price"]["totalPrice"]["fmtPrice"][
+                    "originalPrice"
+                ]
+                discount_price = game["price"]["totalPrice"]["fmtPrice"][
+                    "discountPrice"
+                ]
+                promotions = game["promotions"]["promotionalOffers"]
+                upcoming_promotions = game["promotions"]["upcomingPromotionalOffers"]
 
-            promotions = game.get("promotions", {})
-            active_promotions = promotions.get("promotionalOffers", [])
-            upcoming_promotions = promotions.get("upcomingPromotionalOffers", [])
+                if promotions:
+                    promotion = promotions[0]["promotionalOffers"][0]
+                else:
+                    promotion = upcoming_promotions[0]["promotionalOffers"][0]
+                start = promotion["startDate"]
+                end = promotion["endDate"]
+                # 2024-09-19T15:00:00.000Z
+                start_utc8 = datetime.datetime.strptime(
+                    start, "%Y-%m-%dT%H:%M:%S.%fZ"
+                ) + datetime.timedelta(hours=8)
+                start_human = start_utc8.strftime("%Y-%m-%d %H:%M")
+                end_utc8 = datetime.datetime.strptime(
+                    end, "%Y-%m-%dT%H:%M:%S.%fZ"
+                ) + datetime.timedelta(hours=8)
+                end_human = end_utc8.strftime("%Y-%m-%d %H:%M")
+                discount = float(promotion["discountSetting"]["discountPercentage"])
+                if discount != 0:
+                    # 过滤掉不是免费的游戏
+                    continue
 
-            if active_promotions:
-                promotion = active_promotions[0]["promotionalOffers"][0]
-            elif upcoming_promotions:
-                promotion = upcoming_promotions[0]["promotionalOffers"][0]
-            else:
-                continue
+                if promotions:
+                    games.append(
+                        f"【{title}】\n原价: {original_price} | 现价: {discount_price}\n活动时间: {start_human} - {end_human}"
+                    )
+                else:
+                    upcoming.append(
+                        f"【{title}】\n原价: {original_price} | 现价: {discount_price}\n活动时间: {start_human} - {end_human}"
+                    )
 
-            discount = float(promotion["discountSetting"]["discountPercentage"])
-            if discount != 0:
-                continue
+            except BaseException as e:
+                raise e
+                games.append(f"处理 {title} 时出现错误")
 
-            start = datetime.datetime.strptime(promotion["startDate"], "%Y-%m-%dT%H:%M:%S.%fZ") + datetime.timedelta(hours=8)
-            end = datetime.datetime.strptime(promotion["endDate"], "%Y-%m-%dT%H:%M:%S.%fZ") + datetime.timedelta(hours=8)
+        if len(games) == 0:
+            return CommandResult().message("暂无免费游戏")
+        return (
+            CommandResult()
+            .message(
+                "【EPIC 喜加一】\n"
+                + "\n\n".join(games)
+                + "\n\n"
+                + "【即将免费】\n"
+                + "\n\n".join(upcoming)
+            )
+            .use_t2i(False)
+        )
 
-            game_info = f"【{title}】\n原价: {original_price} | 现价: {discount_price}\n活动时间: {start.strftime('%Y-%m-%d %H:%M')} - {end.strftime('%Y-%m-%d %H:%M')}"
-            (games if active_promotions else upcoming).append(game_info)
-
-        result = "【EPIC 喜加一】\n" + "\n\n".join(games) + "\n\n【即将免费】\n" + "\n\n".join(upcoming)
-        return CommandResult().message(result if games else "暂无免费游戏").use_t2i(False)
 
     @filter.regex(r"^(早安|晚安)")
     async def good_morning(self, message: AstrMessageEvent):
