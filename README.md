@@ -14,6 +14,7 @@
 plugin i https://github.com/oftenshui/astrbot_mcs
 ```
 AstrBot内安装方法：
+
 打开你的AstrBot页面，依次点击：插件市场 ➡ 右下角+号 ➡ 从 GitHub 上在线下载 ➡ 复制下方链接 ➡ 填入仓库链接项 ➡ 安装
 ```
 https://github.com/oftenshui/astrbot_mcs
