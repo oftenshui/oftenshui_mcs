@@ -273,6 +273,7 @@ async def mcs(self, message: AstrMessageEvent):
 
     return CommandResult().message(result_text).use_t2i(False)
 
+    
     @filter.command("一言")
     async def hitokoto(self, message: AstrMessageEvent):
         """来一条一言"""
