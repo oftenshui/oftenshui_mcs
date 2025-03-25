@@ -3,6 +3,7 @@
 为 [AstrBot](https://github.com/Soulter/AstrBot) 支持基本的娱乐功能。
 
 支持功能：
+- mcs查询minecraft服务器状态 （优化）
 - 以图搜番（https://trace.moe）
 - 随机动漫图片（https://t.mwm.moe/）
 - 喜报
@@ -10,7 +11,7 @@
 
 安装方法：
 ```
-plugin i https://github.com/Soulter/goodplugins
+plugin i https://github.com/oftenshui/astrbot_mcs
 ```
 
 使用方法：
@@ -26,3 +27,4 @@ plugin i https://github.com/Soulter/goodplugins
 - `喜加一`：EPIC 喜加一
 - `早安/晚安`：在群里发早晚安，记录睡眠时长，保持健康！
   
+本项目原帖 [astrbot_plugin_essential](https://github.com/Soulter/astrbot_plugin_essential.git) 感谢大佬开发。
