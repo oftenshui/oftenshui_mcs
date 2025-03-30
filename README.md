@@ -1,4 +1,5 @@
 # AstrBot Essential
+本项目为 二改缝合怪 没有下面的作者的项目就没有这个项目 请大家优先浏览原项目
 
 原项目地址 [astrbot_plugin_essential](https://github.com/Soulter/astrbot_plugin_essential.git) 感谢大佬开发。
 
