@@ -3,6 +3,7 @@
 原项目地址 [astrbot_plugin_essential](https://github.com/Soulter/astrbot_plugin_essential.git) 感谢大佬开发。
 
 今日新闻原项目地址 [headline](https://github.com/bbpn-cn/headline) 感谢大佬开发。
+
 为 [AstrBot](https://github.com/Soulter/AstrBot) 支持基本的娱乐功能。
 
 支持功能：
