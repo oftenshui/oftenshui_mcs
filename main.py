@@ -13,6 +13,8 @@ from astrbot.api.all import AstrMessageEvent, CommandResult, Context, Image, Pla
 import astrbot.api.event.filter as filter
 from astrbot.api.star import register, Star
 
+
+
 logger = logging.getLogger("astrbot")
 
 @register("astrbot_plugin_essential", "Soulter", "", "", "")
@@ -49,6 +51,7 @@ class Main(Star):
     def time_convert(self, t):
         m, s = divmod(t, 60)
         return f"{int(m)}分{int(s)}秒"
+
 
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def handle_search_anime(self, message: AstrMessageEvent):
@@ -109,6 +112,9 @@ class Main(Star):
                     return CommandResult(True, False, [Plain("没有找到番剧")], "sf")
             except Exception as e:
                 raise e
+
+
+
 
 
     @filter.command("喜报")
@@ -266,16 +272,16 @@ class Main(Star):
         ping = data.get("ping", "未知")
 
         # 生成在线玩家列表，用 | 分隔
-        name_list_str = " | ".join(online_players) if online_players else "无玩家在线"
+        name_list_str = " | ".join(online_players) if online_players else "查询失败或已隐藏"
 
         # 构造返回文本
         result_text = (
             "【查询结果】\n"
-            f"状态: {status}\n"
+            f"当前状态: {status}\n"
             f"服务器IP: {ip}\n"
-            f"版本: {version}\n"
-            f"延迟: {ping}ms\n"
-            f"MOTD: {motd_text}\n"
+            f"使用版本: {version}\n"
+            f"当前延迟: {ping}ms\n"
+            f"M O T D: {motd_text}\n"
             f"玩家人数: {players}\n"
             f"在线玩家: {name_list_str}"  # 这里去掉了换行，直接显示在同一行
         )
@@ -299,7 +305,7 @@ class Main(Star):
     @filter.command("今日新闻")
     async def today_news(self, message: AstrMessageEvent):
         """获取60秒读懂世界图片新闻"""
-        API_URL = "https://v.api.aa1.cn/api/60s-v3/"
+        API_URL = "https://api.yuafeng.cn/API/60s/"
         
         async def verify_image(session):
             """验证接口是否返回图片"""
