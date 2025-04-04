@@ -1,6 +1,7 @@
 import random
 import asyncio
 import os
+import re
 import json
 import datetime
 import aiohttp
@@ -221,145 +222,162 @@ class Main(Star):
             del self.search_anmime_demand_users[sender]
             yield message.plain_result("🧐你没有发送图片，搜番请求已取消了喵")
 
-    @filter.command("mcs")
-    async def mcs(self, message: AstrMessageEvent):
-        """查mc服务器"""
-        message_str = message.message_str
-        if message_str == "mcs":
-            return CommandResult().error("查 Minecraft 服务器。格式: /mcs [服务器地址]")
+@filter.command("mcs")
+async def mcs(self, message: AstrMessageEvent):
+    """查mc服务器"""
+    message_str = message.message_str
+    if message_str == "mcs":
+        return CommandResult().error("查 Minecraft 服务器。格式: /mcs [服务器地址]")
 
-        ip = message_str.replace("mcs", "").strip()
-        url = f"https://sr-api.sfirew.com/server/{ip}"
-        
+    ip = message_str.replace("mcs", "").strip()
+    url = f"http://cs.sddns.cc:81/?server={ip}"
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                return CommandResult().error("请求失败")
+            data = await resp.json()
+            logger.info(f"获取到 {ip} 的服务器信息。")
+
+    # 处理 MOTD
+    motd_text = (
+        data.get("motd", {}).get("cleaned") or
+        data.get("motd", {}).get("raw", {}).get("text") or
+        data.get("motd", {}).get("raw") or
+        "查询失败"
+    )
+
+    # 解析和处理 MOTD
+    if isinstance(motd_text, str):
+        try:
+            motd_json = json.loads(motd_text)  # 解析 JSON 字符串
+            # 提取文本
+            def extract_text(motd):
+                if 'text' in motd:
+                    text = motd['text']
+                    if 'extra' in motd:
+                        for extra in motd['extra']:
+                            text += extract_text(extra)  # 递归提取
+                    return text
+                return ""
+
+            final_motd = extract_text(motd_json)
+            final_motd = re.sub(r'\s+', ' ', final_motd.strip())  # 替换多个空格为单个空格
+        except json.JSONDecodeError:
+            final_motd = "查询失败"
+    else:
+        final_motd = "查询失败"
+
+    # 处理玩家信息
+    players = "查询失败"
+    online_players = []
+    
+    if "players" in data:
+        players = f"{data['players']['online']}/{data['players']['max']}"
+        online_players = [p["name"] for p in data["players"].get("sample", [])]
+
+    # 兼容 info.raw 里的玩家信息
+    if not online_players and "info" in data:
+        online_players = [p["name"] for p in data["info"].get("raw", [])]
+
+    # 处理版本信息
+    version = data.get("version", {}).get("raw", "查询失败")
+
+    # 服务器状态
+    status = "🟢" if data.get("online", False) else "🔴"
+
+    # 处理 Ping 延迟
+    ping = data.get("ping", "未知")
+
+    # 生成在线玩家列表，用 | 分隔
+    name_list_str = " | ".join(online_players) if online_players else "无在线或已隐藏"
+
+    # 构造返回文本
+    result_text = (
+        "【查询结果】\n"
+        f"当前状态: {status}\n"
+        f"服务器IP: {ip}\n"
+        f"使用版本: {version}\n"
+        f"当前延迟: {ping}ms\n"
+        f"M O T D: {final_motd}\n"  # 使用处理后的 MOTD
+        f"玩家人数: {players}\n"
+        f"在线玩家: {name_list_str}"
+    )
+
+    return CommandResult().message(result_text).use_t2i(False)
+
+
+@filter.command("一言")
+async def hitokoto(self, message: AstrMessageEvent):
+    """来一条一言"""
+    url = "https://v1.hitokoto.cn"
+    try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
+            async with session.get(url, timeout=5) as resp:
                 if resp.status != 200:
                     return CommandResult().error("请求失败")
                 data = await resp.json()
-                logger.info(f"获取到 {ip} 的服务器信息。")
+        return CommandResult().message(data["hitokoto"] + " —— " + data["from"])
+    except Exception as e:
+        return CommandResult().error(f"获取一言出错: {str(e)}")
 
-        # 处理 MOTD - 从raw.extra中提取纯文本
-        motd_text = ""
-        if "motd" in data and "raw" in data["motd"] and "extra" in data["motd"]["raw"]:
-            for item in data["motd"]["raw"]["extra"]:
-                if isinstance(item, dict) and "text" in item:
-                    text = item["text"].strip()
-                    if text and text != "\n":
-                        motd_text += text + " "
-            motd_text = motd_text.strip()
-        else:
-            motd_text = "查询失败"
 
-        # 处理玩家信息
-        players = "查询失败"
-        online_players = []
-        
-        if "players" in data:
-            players = f"{data['players']['online']}/{data['players']['max']}"
-            online_players = [p["name"] for p in data["players"].get("sample", [])]
+@filter.command("今日新闻")
+async def today_news(self, message: AstrMessageEvent):
+    """获取60秒读懂世界图片新闻"""
+    API_URL = "https://v.api.aa1.cn/api/60s-v3/"
 
-        # 兼容 info.raw 里的玩家信息
-        if not online_players and "info" in data:
-            online_players = [p["name"] for p in data["info"].get("raw", [])]
-
-        # 处理版本信息
-        version = data.get("version", {}).get("raw", "查询失败")
-
-        # 服务器状态
-        status = "🟢" if data.get("online", False) else "🔴"
-
-        # 处理 Ping 延迟
-        ping = data.get("ping", "未知")
-
-        # 生成在线玩家列表，用 | 分隔
-        name_list_str = " | ".join(online_players) if online_players else "查询失败或已隐藏"
-
-        # 构造返回文本
-        result_text = (
-            "【查询结果】\n"
-            f"当前状态: {status}\n"
-            f"服务器IP: {ip}\n"
-            f"使用版本: {version}\n"
-            f"当前延迟: {ping}ms\n"
-            f"M O T D: {motd_text}\n"
-            f"玩家人数: {players}\n"
-            f"在线玩家: {name_list_str}"  # 这里去掉了换行，直接显示在同一行
-        )
-
-        return CommandResult().message(result_text).use_t2i(False)
-
-    @filter.command("一言")
-    async def hitokoto(self, message: AstrMessageEvent):
-        """来一条一言"""
-        url = "https://v1.hitokoto.cn"
+    async def verify_image(session):
+        """验证接口是否返回图片"""
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=5) as resp:
-                    if resp.status != 200:
-                        return CommandResult().error("请求失败")
-                    data = await resp.json()
-            return CommandResult().message(data["hitokoto"] + " —— " + data["from"])
-        except Exception as e:
-            return CommandResult().error(f"获取一言出错: {str(e)}")
-
-    @filter.command("今日新闻")
-    async def today_news(self, message: AstrMessageEvent):
-        """获取60秒读懂世界图片新闻"""
-        API_URL = "https://api.yuafeng.cn/API/60s/"
-        
-        async def verify_image(session):
-            """验证接口是否返回图片"""
-            try:
-                async with session.get(API_URL) as response:
-                    if response.status == 200:
-                        content_type = response.headers.get('Content-Type', '')
-                        if isinstance(content_type, bytes):
-                            content_type = content_type.decode('utf-8')
-                        return content_type.startswith('image/')
-                    return False
-            except aiohttp.ClientError as e:
-                logger.warning(f"验证图片接口失败: {str(e)}")
+            async with session.get(API_URL) as response:
+                if response.status == 200:
+                    content_type = response.headers.get('Content-Type', '')
+                    if isinstance(content_type, bytes):
+                        content_type = content_type.decode('utf-8')
+                    return content_type.startswith('image/')
                 return False
+        except aiohttp.ClientError as e:
+            logger.warning(f"验证图片接口失败: {str(e)}")
+            return False
 
-        try:
+    try:
+        async with aiohttp.ClientSession() as session:
+            # 第1步：验证API可用性
+            if not await verify_image(session):
+                yield message.plain_result("⚠️新闻服务暂时不可用，请稍后再试")
+                return
 
-            async with aiohttp.ClientSession() as session:
-                # 第1步：验证API可用性
-                if not await verify_image(session):
-                    yield message.plain_result("⚠️新闻服务暂时不可用，请稍后再试")
-                    return
+            # 第2步：返回图片结果 - 移除了 use_t2i 参数
+            yield CommandResult(chain=[Image.fromURL(API_URL)])
 
-                # 第2步：返回图片结果 - 移除了 use_t2i 参数
-                yield CommandResult(chain=[Image.fromURL(API_URL)])
-
-        except Exception as e:
-            logger.error(f"获取今日新闻时出错: {str(e)}", exc_info=True)
-            yield message.plain_result("❌获取新闻时发生错误，请稍后再试")
-
+    except Exception as e:
+        logger.error(f"获取今日新闻时出错: {str(e)}", exc_info=True)
+        yield message.plain_result("❌获取新闻时发生错误，请稍后再试")
 
 
-    @filter.command("help")
-    async def help_command(self, message: AstrMessageEvent):
-        """获取机器人使用说明"""
-        url = "http://vless.tpddns.cn:81/help.html"
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=5) as resp:
-                    if resp.status != 200:
-                        return CommandResult().error("请求帮助页面失败")
-                    
-                    # 获取原始HTML内容
-                    html_content = await resp.text()
-                    
-                    # 提取"help："之后的内容
-                    if "help：" in html_content:
-                        help_text = html_content.split("help：")[1].strip()
-                        return CommandResult().message(help_text)
-                    else:
-                        return CommandResult().error("帮助内容格式不正确")
-        
-        except Exception as e:
-            return CommandResult().error(f"获取帮助出错: {str(e)}")
+@filter.command("help")
+async def help_command(self, message: AstrMessageEvent):
+    """获取机器人使用说明"""
+    url = "http://vless.tpddns.cn:81/help.html"
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=5) as resp:
+                if resp.status != 200:
+                    return CommandResult().error("请求帮助页面失败")
+
+                # 获取原始HTML内容
+                html_content = await resp.text()
+
+                # 提取"help："之后的内容
+                if "help：" in html_content:
+                    help_text = html_content.split("help：")[1].strip()
+                    return CommandResult().message(help_text)
+                else:
+                    return CommandResult().error("帮助内容格式不正确")
+
+    except Exception as e:
+        return CommandResult().error(f"获取帮助出错: {str(e)}")
 
 
 path = os.path.dirname(os.path.abspath(__file__))  # 获取当前脚本目录
