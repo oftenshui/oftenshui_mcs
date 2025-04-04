@@ -239,34 +239,40 @@ async def mcs(self, message: AstrMessageEvent):
             data = await resp.json()
             logger.info(f"获取到 {ip} 的服务器信息。")
 
-    # 处理 MOTD
-    motd_text = (
-        data.get("motd", {}).get("cleaned") or
-        data.get("motd", {}).get("raw", {}).get("text") or
-        data.get("motd", {}).get("raw") or
-        "查询失败"
+        # 处理 MOTD（自动兼容 cleaned、raw、text、JSON 字符串等多种格式）
+    motd_raw = (
+        data.get("motd", {}).get("cleaned")
+        or data.get("motd", {}).get("raw", {}).get("text")
+        or data.get("motd", {}).get("raw")
+        or "查询失败"
     )
 
-    # 解析和处理 MOTD
-    if isinstance(motd_text, str):
-        try:
-            motd_json = json.loads(motd_text)  # 解析 JSON 字符串
-            # 提取文本
-            def extract_text(motd):
-                if 'text' in motd:
-                    text = motd['text']
-                    if 'extra' in motd:
-                        for extra in motd['extra']:
-                            text += extract_text(extra)  # 递归提取
-                    return text
-                return ""
+    def extract_text(obj):
+        """递归提取 JSON 中的 text 字段"""
+        if isinstance(obj, dict):
+            text = obj.get("text", "")
+            if "extra" in obj:
+                for extra in obj["extra"]:
+                    text += extract_text(extra)
+            return text
+        return str(obj)  # 防止不是字典时报错
 
-            final_motd = extract_text(motd_json)
-            final_motd = re.sub(r'\s+', ' ', final_motd.strip())  # 替换多个空格为单个空格
+    if isinstance(motd_raw, str):
+        motd_raw = motd_raw.strip()
+        try:
+            # 尝试把它当作 JSON 字符串解析
+            motd_json = json.loads(motd_raw)
+            motd_text = extract_text(motd_json)
         except json.JSONDecodeError:
-            final_motd = "查询失败"
+            # 如果不是 JSON，就直接用字符串（如含有§r颜色符号等的原始 MOTD）
+            motd_text = re.sub(r'§[0-9a-fklmnor]', '', motd_raw)  # 去除颜色符号
+    elif isinstance(motd_raw, dict):
+        motd_text = extract_text(motd_raw)
     else:
-        final_motd = "查询失败"
+        motd_text = "查询失败"
+
+    motd_text = re.sub(r'\s+', ' ', motd_text.strip()) if isinstance(motd_text, str) else "查询失败"
+
 
     # 处理玩家信息
     players = "查询失败"
@@ -299,7 +305,7 @@ async def mcs(self, message: AstrMessageEvent):
         f"服务器IP: {ip}\n"
         f"使用版本: {version}\n"
         f"当前延迟: {ping}ms\n"
-        f"M O T D: {final_motd}\n"  # 使用处理后的 MOTD
+        f"M O T D: {motd_text}\n"  # 使用处理后的 MOTD
         f"玩家人数: {players}\n"
         f"在线玩家: {name_list_str}"
     )
