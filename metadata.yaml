@@ -1,6 +1,6 @@
-name: astrbot_mcs
+name: oftenshui_mcs
 desc: 功能介绍：随机动漫图片、以图搜番、MC服务器、今日新闻、一言、原神、EPIC喜加一、今天吃什么、群早晚安记录、机器人使用说明（自用）。
 help:
-version: v1.1.0
+version: v1.1.1
 author: Soulter,FateTrial,oftenshui
-repo: https://github.com/oftenshui/astrbot_mcs
+repo: https://github.com/oftenshui/oftenshui_mcs
