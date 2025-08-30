@@ -8,7 +8,7 @@
 为 [AstrBot](https://github.com/Soulter/AstrBot) 支持基本的娱乐功能。
 
 支持功能：
-- mcs查询minecraft服务器状态 （优化）
+- mc查询minecraft服务器状态 （优化）
 - 以图搜番（https://trace.moe）
 - 随机动漫图片（https://t.mwm.moe/）
 - 原神
