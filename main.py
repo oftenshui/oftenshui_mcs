@@ -222,95 +222,79 @@ class Main(Star):
             del self.search_anmime_demand_users[sender]
             yield message.plain_result("🧐你没有发送图片，搜番请求已取消了喵")
 
-@filter.command("mcs")
-async def mcs(self, message: AstrMessageEvent):
-    """查mc服务器"""
-    message_str = message.message_str
-    if message_str == "mcs":
-        return CommandResult().error("查 Minecraft 服务器。格式: /mcs [服务器地址]")
+    @filter.command("mc")
+    async def mcs(self, message: AstrMessageEvent):
+        """查mc服务器"""
+        message_str = message.message_str
+        if message_str == "mc":
+            return CommandResult().error("查 Minecraft 服务器。格式: /mc [服务器地址]")
+        ip = message_str.strip()
+        if ip.startswith("mc"):
+            ip = ip[2:].strip()
+        
+        url = f"https://api.mcsrvstat.us/3/{ip}"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                if resp.status != 200:
+                    return CommandResult().error("请求失败")
+                data = await resp.json()
+                logger.info(f"获取到 {ip} 的服务器信息。")
 
-    ip = message_str.replace("mcs", "").strip()
-    url = f"http://cs.sddns.cc:81/?server={ip}"
+        # result = await context.image_renderer.render_custom_template(self.mc_html_tmpl, data, return_url=True)
+        motd = "查询失败"
+        if (
+            "motd" in data
+            and isinstance(data["motd"], dict)
+            and isinstance(data["motd"].get("clean"), list)
+            and isinstance(data["motd"].get("motd"), list)
+        ):
+            motd_lines = [
+                i.strip()
+                for i in data["motd"]["clean"]
+                if isinstance(i, str) and i.strip()
+            ]
+            motd = "\n".join(motd_lines) if motd_lines else "查询失败"
+        if motd == "查询失败" and isinstance(data.get("motd"), str):
+            motd = data["motd"].strip() if data["motd"].strip() else "查询失败"
+        players = "查询失败"
+        version = "查询失败"
+        if "error" in data:
+            return CommandResult().error(f"查询失败: {data['error']}")
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as resp:
-            if resp.status != 200:
-                return CommandResult().error("请求失败")
-            data = await resp.json()
-            logger.info(f"获取到 {ip} 的服务器信息。")
+        name_list = []
 
-        # 处理 MOTD（自动兼容 cleaned、raw、text、JSON 字符串等多种格式）
-    motd_raw = (
-        data.get("motd", {}).get("cleaned")
-        or data.get("motd", {}).get("raw", {}).get("text")
-        or data.get("motd", {}).get("raw")
-        or "查询失败"
-    )
+        if "players" in data:
+            players = f"{data['players']['online']}/{data['players']['max']}"
 
-    def extract_text(obj):
-        """递归提取 JSON 中的 text 字段"""
-        if isinstance(obj, dict):
-            text = obj.get("text", "")
-            if "extra" in obj:
-                for extra in obj["extra"]:
-                    text += extract_text(extra)
-            return text
-        return str(obj)  # 防止不是字典时报错
+            if "sample" in data["players"]:
+                name_list = data["players"]["sample"]
+            elif "list" in data["players"]:
+                name_list = data["players"]["list"]
 
-    if isinstance(motd_raw, str):
-        motd_raw = motd_raw.strip()
-        try:
-            # 尝试把它当作 JSON 字符串解析
-            motd_json = json.loads(motd_raw)
-            motd_text = extract_text(motd_json)
-        except json.JSONDecodeError:
-            # 如果不是 JSON，就直接用字符串（如含有§r颜色符号等的原始 MOTD）
-            motd_text = re.sub(r'§[0-9a-fklmnor]', '', motd_raw)  # 去除颜色符号
-    elif isinstance(motd_raw, dict):
-        motd_text = extract_text(motd_raw)
-    else:
-        motd_text = "查询失败"
+        if "version" in data:
+            version = str(data["version"])
 
-    motd_text = re.sub(r'\s+', ' ', motd_text.strip()) if isinstance(motd_text, str) else "查询失败"
+        status = "🟢" if data["online"] else "🔴"
 
+        name_list_str = ""
+        if name_list:
+           name_list_str = " | ".join(name_list)
+        if not name_list_str:
+           name_list_str = "查询失败"
+           
+        ping = data.get("ping", "未知")
 
-    # 处理玩家信息
-    players = "查询失败"
-    online_players = []
-    
-    if "players" in data:
-        players = f"{data['players']['online']}/{data['players']['max']}"
-        online_players = [p["name"] for p in data["players"].get("sample", [])]
-
-    # 兼容 info.raw 里的玩家信息
-    if not online_players and "info" in data:
-        online_players = [p["name"] for p in data["info"].get("raw", [])]
-
-    # 处理版本信息
-    version = data.get("version", {}).get("raw", "查询失败")
-
-    # 服务器状态
-    status = "🟢" if data.get("online", False) else "🔴"
-
-    # 处理 Ping 延迟
-    ping = data.get("ping", "未知")
-
-    # 生成在线玩家列表，用 | 分隔
-    name_list_str = " | ".join(online_players) if online_players else "无在线或已隐藏"
-
-    # 构造返回文本
-    result_text = (
-        "【查询结果】\n"
-        f"当前状态: {status}\n"
-        f"服务器IP: {ip}\n"
-        f"使用版本: {version}\n"
-        f"当前延迟: {ping}ms\n"
-        f"M O T D: {motd_text}\n"  # 使用处理后的 MOTD
-        f"玩家人数: {players}\n"
-        f"在线玩家: {name_list_str}"
-    )
-
-    return CommandResult().message(result_text).use_t2i(False)
+        result_text = (
+            "【查询结果】\n"
+            f"当前状态: {status}\n"
+            f"服务器IP: {ip}\n"
+            f"当时版本: {version}\n"
+            f"当前延迟: {ping}ms\n"
+            f"M O T D: {motd}\n"
+            f"玩家人数: {players}\n"
+            f"在线玩家: {name_list_str}"
+        )
+        return CommandResult().message(result_text).use_t2i(False)
 
 
 @filter.command("一言")
