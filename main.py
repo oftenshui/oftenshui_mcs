@@ -26,7 +26,7 @@ class Main(Star):
         PLUGIN_NAME = self.PLUGIN_NAME
         path = os.path.abspath(os.path.dirname(__file__))
         self.mc_html_tmpl = open(
-            path + "/templates/mcs.html", "r", encoding="utf-8"
+            path + "/templates/mc.html", "r", encoding="utf-8"
         ).read()
         self.what_to_eat_data: list = json.loads(
             open(path + "/resources/food.json", "r", encoding="utf-8").read()
@@ -232,7 +232,7 @@ class Main(Star):
         if ip.startswith("mc"):
             ip = ip[2:].strip()
         
-        url = f"https://api.mcsrvstat.us/3/{ip}"
+        url = f"http://您的网址域名/api.php?server={ip}"
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as resp:
                 if resp.status != 200:
@@ -274,7 +274,7 @@ class Main(Star):
         if "version" in data:
             version = str(data["version"])
 
-        status = "🟢" if data["online"] else "🔴"
+        status = "🟢在线" if data["online"] else "🔴离线"
 
         name_list_str = ""
         if name_list:
@@ -282,19 +282,24 @@ class Main(Star):
         if not name_list_str:
            name_list_str = "查询失败"
            
-        ping = data.get("ping", "未知")
+        ping_value = data.get("ping")
+        if ping_value:
+           ping_display = f"{ping_value}ms"
+        else:
+           ping_display = "查询失败"
 
         result_text = (
-            "【查询结果】\n"
+            "-----【查询结果】-----\n"
             f"当前状态: {status}\n"
-            f"服务器IP: {ip}\n"
+            f"当前延迟: {ping_display}\n"
+            f"网际协议: {ip}\n"
             f"当时版本: {version}\n"
-            f"当前延迟: {ping}ms\n"
-            f"M O T D: {motd}\n"
             f"玩家人数: {players}\n"
-            f"在线玩家: {name_list_str}"
+            f"在线玩家: {name_list_str}\n"
+            f"描述信息: {motd}\n"
         )
         return CommandResult().message(result_text).use_t2i(False)
+
 
 
 @filter.command("一言")
@@ -312,10 +317,10 @@ async def hitokoto(self, message: AstrMessageEvent):
         return CommandResult().error(f"获取一言出错: {str(e)}")
 
 
-@filter.command("今日新闻")
+@filter.command("60s")
 async def today_news(self, message: AstrMessageEvent):
-    """获取60秒读懂世界图片新闻"""
-    API_URL = "https://v.api.aa1.cn/api/60s-v3/"
+    """60秒看世界调用60s的项目"""
+    API_URL = "https://60s.viki.moe/v2/60s?encoding=image"
 
     async def verify_image(session):
         """验证接口是否返回图片"""
@@ -346,10 +351,10 @@ async def today_news(self, message: AstrMessageEvent):
         yield message.plain_result("❌获取新闻时发生错误，请稍后再试")
 
 
-@filter.command("help")
+@filter.command("帮助")
 async def help_command(self, message: AstrMessageEvent):
     """获取机器人使用说明"""
-    url = "http://vless.tpddns.cn:81/help.html"
+    url = "http://您的网址域名/help.html"
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(url, timeout=5) as resp:
